@@ -1,0 +1,200 @@
+clc;clear;close all
+addpath(genpath('tools'));
+%% 读取原始信号
+samfs = 30000;    % 采样频率
+downfs = 1000;    % 降采样后频率
+[plx_NAMEFile,filepath,plx_FILEIndex] = uigetfile('*.plx','Select the date file','E:\郑州平台\实验室迷宫数据之092_106_653\1.原始数据\092鸽原始数据(N)');
+plx_FullFilename = strcat(filepath,plx_NAMEFile);
+[xlsx_NAMEFile,xlsxpath,xlsx_FILEIndex] = uigetfile('*.xlsx','Select the date file',filepath);
+xlsx_FullFilename = strcat(xlsxpath,xlsx_NAMEFile);
+channel=1:1:16;
+Drawing=false;
+refs = xlsread(xlsx_FullFilename);% 读取打标 
+Common=false; %选择是否共模参考
+[sign_raw,sign_lfp_raw,sign_spk_raw] = f_read_rawdata_lfp(plx_FullFilename,samfs,downfs,channel,Common,Drawing);  % 读取原始信号并筛选通道
+
+%% 提取lfp响应 
+
+fband=1:80;              % 选取的子频带
+lfp_stft=f_read_lfp(sign_lfp_raw,downfs,fband);
+lfp6080=squeeze(mean(lfp_stft(60:80,:,:)));
+
+
+%% 提取spk响应
+bin=100;
+spk_thre = 2.5; % spk的阈值 可调
+sorting=false; %选择是否sorting
+[spkdata,sign_spk_raster,all_ch_thre] = f_read_wirelessspk(filepath,sign_spk_raw,channel,spk_thre,samfs,downfs,sorting); % 读取无线spk
+sign_spk_rate = f_sl_binsl(sign_spk_raster,bin,1);
+
+%% 20s特征图
+% 假设 sign_spk_rate 是一个已经加载到 MATLAB 工作区中的 Nx16 矩阵
+% 其中 N 是数据点的总数，16 是通道数
+% 如果 sign_spk_rate 是从文件中读取的，请使用如 load('datafile.mat', 'sign_spk_rate') 来加载它
+
+Result_RootPath=strcat(filepath,'sign_spk_raster-30');            % 可视化图片保存路径
+mkdir(Result_RootPath);
+
+
+% 设置采样率和段长度
+fs = 1000;  % 采样率，单位为 Hz
+segment_length_sec = 30;  % 每段的时间长度，单位为秒
+
+% 计算段长度对应的数据点数
+segment_length_points = fs * segment_length_sec;
+
+% 计算总点数和段数
+num_points = size(sign_spk_raster, 1);
+num_segments = ceil(num_points / segment_length_points);  % 使用 ceil 以确保包含最后一个不完整的段（如果有）
+
+% 预处理时间戳（整个数据集的时间戳）
+total_time_stamps = (0:num_points-1) / fs;  % 计算整个数据集的时间戳，单位为秒
+
+% 计算打标位置
+
+refs_position = refs(:,1)';
+
+
+% 循环遍历每个段并绘制
+for segment_idx = 1:num_segments
+    % 计算当前段的起始和结束索引（注意：这里使用 round 以确保索引是整数）
+    start_idx = round((segment_idx - 1) * segment_length_points) + 1;
+    end_idx = min(round(segment_idx * segment_length_points), num_points);
+    
+    % 提取当前段的数据
+    segment_data = sign_spk_raster(start_idx:end_idx, :);
+    
+    % 计算当前段的时间戳（绝对时间）
+    segment_time_stamps = total_time_stamps(start_idx:end_idx);
+    
+    % 创建一个新的图形窗口（或根据需要重用，但这里为了清晰每个段都创建新窗口）
+    % figure('Position', [100, 100, 1200, 800]);
+    h_Fig=figure('units','normalized','outerposition',[0 0 1 1]);
+    title(sprintf('Spike Rate for %d-%d s Segment - Segment %d', ...
+        start_idx/fs, end_idx/fs-1/fs, segment_idx));  % 设置图形标题，显示绝对时间范围
+    
+    % 绘制每个通道的数据
+    for channel_idx = 1:size(segment_data, 2)
+        % 使用 subplot 创建 8x2 的网格布局，并定位到当前通道的子图
+        subplot(8, 2, channel_idx);
+        
+        % 绘制当前通道的数据
+        plot(segment_time_stamps, segment_data(:, channel_idx));
+
+        hold on;
+
+        for i = 1:length(refs_position)
+            line_time = refs_position(i);
+
+            if line_time >= start_idx/fs && line_time <= end_idx/fs
+
+                line_idx = round(line_time,3);
+                plot([line_idx,line_idx],ylim,'r','LineWidth',1.5)    %绘制spike阈值下线（红色）
+                hold off;
+
+            end
+        end
+
+
+        
+        % 设置轴标签和标题
+        if channel_idx == 1 || mod(channel_idx-1, 8) == 0
+            xlabel('Time (s)');  % 每行的第一个子图设置X轴标签
+        else
+            xlabel('');  % 其他子图不显示X轴标签
+        end
+        ylabel('Spike Rate');  % 设置Y轴标签
+        title(sprintf('Channel %d', channel_idx));  % 设置子图标题
+        
+        % 设置Y轴范围（可选，但有助于可视化）
+        ylim([0 max(segment_data(:, channel_idx)) * 1.1]);
+    end
+    
+    % 可选：添加图形网格线
+    grid on;
+    
+    % 可选：保存图形到文件（如果需要）
+    % saveas(gcf, sprintf('segment_%d.png', segment_idx));
+
+
+
+    % saved_rootpath =Result_RootPath;
+    % filename=num2str(segment_idx);
+    % full_savedfile_name = strcat(saved_rootpath,'\',filename,'.png');
+    % print(h_Fig,'-dpng',full_savedfile_name);
+    % close(h_Fig)
+
+
+end
+
+% 提示用户处理完成
+disp('Processing complete. All segments have been plotted with absolute time on the X-axis.');
+
+
+
+
+%% 相关性系数矩阵
+% 假设 sign_spk_rate 是一个大小为 941091x16 的矩阵
+% 采样率为1000Hz，因此每250ms有250个数据点
+
+% 输入信号：sign_spk_rate（941091x16）
+
+% 时间窗口大小
+window_size = 200; % 250ms 对应 250个采样点
+
+% 通道数
+num_channels = size(lfp6080, 2);
+
+% 计算多少个窗口
+num_windows = floor(size(lfp6080, 1) / window_size);
+
+% 创建一个文件夹保存图片
+Result_RootPath = strcat(filepath, 'lfp-corr-200'); % 可视化图片保存路径
+mkdir(Result_RootPath);
+
+% 对每个时间窗口进行处理
+for i = 1:num_windows
+    % 获取当前窗口的起始和结束时间
+    start_idx = (i - 1) * window_size + 1;
+    end_idx = i * window_size;
+    
+    % 提取当前窗口的数据，大小为 250x16
+    window_data = lfp6080(start_idx:end_idx, :);
+    
+    % 计算相关性矩阵 (16x16)
+    corr_matrix = corr(window_data);
+    
+    % 绘制相关性矩阵热力图
+    h_Fig = figure('units', 'normalized', 'outerposition', [0 0 1 1],'Visible','off');
+    imagesc(corr_matrix);  % 使用 imagesc 绘制矩阵
+    colorbar;  % 显示颜色条
+    
+    % 设置颜色图谱，黄色为最大，蓝色为最小
+    colormap(parula);  % 可以尝试调整颜色的映射范围
+
+
+    % 计算当前时间窗口的时间范围
+    start_time = (i - 1) * window_size / 1000;  % 计算起始时间（单位：秒）
+    end_time = i * window_size / 1000;          % 计算结束时间（单位：秒）
+    
+    
+    % 设置图形标题
+    title(sprintf('Correlation Matrix for %.2fs-%.2fs', start_time, end_time));
+    
+    % 设置坐标轴标签
+    xticks(1:num_channels);
+    yticks(1:num_channels);
+    xticklabels(arrayfun(@(x) sprintf('Ch%d', x), 1:num_channels, 'UniformOutput', false));
+    yticklabels(arrayfun(@(x) sprintf('Ch%d', x), 1:num_channels, 'UniformOutput', false));
+    
+
+    % 设置保存文件的命名方式
+    filename = sprintf('%.2fs-%.2fs', start_time, end_time);
+    full_savedfile_name = fullfile(Result_RootPath, [filename, '.png']);
+    
+    % 保存图像
+    print(h_Fig, '-dpng', full_savedfile_name);
+    close(h_Fig);
+end
+
+disp('相关性图像已生成并保存!');

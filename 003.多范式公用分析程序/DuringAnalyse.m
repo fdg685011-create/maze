@@ -1,0 +1,174 @@
+clc;clear;close all
+addpath(genpath('tools'));
+%% 读取原始信号
+samfs = 30000;    % 采样频率
+downfs = 1000;    % 降采样后频率
+FS=30000;
+fs=1000;
+% filepath = 'F:\Data\ou056\20231030\datal';                    % nsx文件地址
+[plx_NAMEFile,filepath,plx_FILEIndex] = uigetfile('*.plx','Select the date file','E:\郑州平台\实验室迷宫数据之092_106_653\1.原始数据\092鸽原始数据(N)');
+plx_FullFilename = strcat(filepath,plx_NAMEFile);
+% xlsxpath = 'F:\Data\ou056\20231030\datal\056_1030_l.xlsx';                % 打标xlsx文件地址
+[xlsx_NAMEFile,xlsxpath,xlsx_FILEIndex] = uigetfile('*.xlsx','Select the date file',filepath);
+xlsx_FullFilename = strcat(xlsxpath,xlsx_NAMEFile);
+channel=1:1:16;
+Drawing=false;
+refs = xlsread(xlsx_FullFilename);% 读取打标 
+% 视频打标起始时刻每次需要调整
+% video_start= 81.8;
+% refs(:,[1 2]) =refs(:,[1 2])-video_start;
+Common=false; %选择是否共模参考
+[sign_raw,sign_lfp_raw,sign_spk_raw] = f_read_rawdata_lfp(plx_FullFilename,samfs,downfs,channel,Common,Drawing);  % 读取原始信号并筛选通道
+% 全时段原始信号图
+% filesavepath = strcat(filepath,'figures\');
+% p_line(sign_raw,channel,refs,'sign raw',samfs);
+% print(strcat(filesavepath,'sign_raw1.emf'),'-dmeta')
+% p_line(sign_lfp_raw,channel,refs,'sign lfp raw',downfs);
+% print(strcat(filesavepath,'sign_lfp_raw1.emf'),'-dmeta')
+% p_line(sign_spk_raw,channel,refs,'sign spk raw',samfs);
+% print(strcat(filesavepath,'sign_spk_raw1.emf'),'-dmeta')
+%% 提取lfp响应 
+freq = [1,150];             % 时频分析的频率范围
+window=256;
+step=1;
+before=1;      % 往前往后的时间裕量，秒
+after=3;
+[data_sz,f]=f_read_lfptf(sign_lfp_raw,channel,freq,downfs,window,step,refs,before,after);
+% lfp发放率，全时间段
+fband=[60,80];              % 选取的子频带
+
+
+% sign_lfp_rate = squeeze(mean(sign_lfp_tf(f(f>=fband(1) & f<=fband(2)),:,:),1));
+% sign_lfp_rate=f_sl_binsl(sign_lfp_rate,200,1);
+% p_line(sign_lfp_rate,channel,refs,'sign lfp rate',downfs);
+% print(strcat(filesavepath,'sign_lfp_rate.emf'),'-dmeta')
+% 计算每个试次的lfp，分为两个方向
+p_lfp_trial(data_sz,f,channel,refs,fband,downfs,before,after);
+
+
+
+%% 提取spk响应
+% spk_thre = 4.25; % spk的阈值 可调
+% sorting=false; %选择是否sorting
+% [spkdata,sign_spk_raster] = f_read_wirelessspk(filepath,sign_spk_raw,channel,spk_thre,samfs,downfs,sorting); % 读取无线spk
+% % [spkdata,sign_spk_raster1refs,time] = f_read_wirespk(filepath,channel_sel,samfs,downfs);        % 读取有线spk
+% sign_spk_rate = f_sl_binsl(sign_spk_raster,200,1);
+% % spike发放率，全时间段
+% % p_line(sign_spk_rate,channel,refs,'sign spk rate',downfs);
+% % print(strcat(filesavepath,'sign_spk_rate.emf'),'-dmeta')
+% 
+% % 计算每个试次的raster和发放率，分为两个方向
+% before = 1;      % 往前往后的时间裕量，秒
+% after=0;
+% p_spk_trial(sign_spk_raster,sign_spk_rate,channel,refs,before,after,downfs);
+% p_spk_raster(sign_spk_raster,channel,refs,before,downfs);
+%% 试次打标
+%  label=zeros(1,size(sign_lfp_rate,1));
+%  ref_on = refs(refs(:,3)==0,:);
+% for i=1:length(ref_on)
+%     band=[ref_on(i,1)*downfs ref_on(i,2)*downfs]; 
+%     label(band(1):band(2))=1;
+% end
+% ref_off = refs(refs(:,3)==1,:);
+% for i=1:length(ref_off)
+%     band=[ref_off(i,1)*downfs ref_off(i,2)*downfs]; 
+%     label(band(1):band(2))=2;
+% end
+%% 解码
+% lenn=length(sign_spk_rate);
+% sign_spk_rate=sign_spk_rate(window/2-1:lenn-window/2,:);
+% sign_lfp_rate_choose=sign_lfp_rate(:,3);
+% data=[sign_spk_rate,sign_lfp_rate_choose,label'];
+% point=refs(17,1);
+% endd=refs(20,2);
+% alldata_train=data((refs(1,1)-5)*1000:(point-5)*1000,:);
+% alldata_text=data((point-5)*1000+1:(endd+5)*1000,:);
+% alldata_train(:,1:17)=( mapminmax(alldata_train(:,1:17)',0,1))';
+% alldata_text(:,1:17)= (mapminmax(alldata_text(:,1:17)',0,1))';
+% % alldata_train_lfp=alldata_train(:,[1:7 15]);
+% % alldata_text_lfp=alldata_text(:,[1:7 15]);
+% % alldata_train_spk=alldata_train(:,[8:14 15]);
+% % alldata_text_spk=alldata_text(:,[8:14 15]);
+% % [lfp_coeff, score, latent] = pca(all_data(:,[1:7]));  %% 试次，通道，对通道进行降维
+% % [spk_coeff, score, latent] = pca(all_data(:,[8:14]));  %% 试次，通道，对通道进行降维
+% % [max_a,index]=max(all_data);
+% % [min_a,index]=min(all_data);
+% % maxmin=[max_a(:,1:14);min_a(:,1:14)];
+% len=length(alldata_text);
+% sz=[];
+% for t=1:len
+%     text=alldata_text(t,1:17);
+%     yfit =TREE_trainedModel.predictFcn(text); 
+%     sz=[sz,yfit];
+% end
+% labell=alldata_text(:,18);
+% rate=length(find(sz'==labell))/len;
+% figure
+% plot(sz,'g');
+% figure
+% plot(labell,'b');
+% % 制作标签，精确打标
+% bin = 3000;
+% label = f_make_label(sign_spk_raster,refs,downfs,bin);
+% p_make_label(sign_spk_raster,label,refs,channel,downfs,bin) 
+%% 定义选择性
+% ch = 5;
+% bin=3000;
+% label_ch=label(:,ch);
+% sign_spk_rate = f_sl_binsl(sign_spk_raster,bin,1);
+% feat_spkrate_target=sign_spk_rate(label_ch==2,:);    %target标签的特征
+% feat_spkrate_other=sign_spk_rate(label_ch==1,:);    %other标签的特征
+% feat_spkrate_baseline=sign_spk_rate(label_ch==0,:);    %baseline标签的特征
+% binedgs=20;     %直方图划分为n个窗口
+% titlename={'target','baseline'};
+% [sel_1,sel_2,sel_n] = f_cal_sel2(feat_spkrate_target,feat_spkrate_baseline,channel,binedgs,titlename);
+% titlename={'target','other','baseline'};
+% [sel_1,sel_2,sel_3,sel_n] = f_cal_sel3(feat_spkrate_target,feat_spkrate_other,feat_spkrate_baseline,...
+%                                     channel,binedgs,titlename);
+%% 保存数据
+% sign_spk_raw;       %spike原始信号
+% sign_lfp_raw;       %lfp原始信号
+% sign_spk_raster;    %spike raster信号
+% sign_lfp_tf;        %lfp时频信号
+% sign_spk_rate;      %spike发放率信号
+% sign_lfp_rate;      %lfp发放率信号
+% label;              %信号标签
+% refs;               %打标时刻
+% save(fullfile('signs','sign_spk_raw.mat'),'sign_spk_raw');
+% save(fullfile('signs','sign_lfp_raw.mat'),'sign_lfp_raw');
+% save(fullfile('signs','sign_spk_raster.mat'),'sign_spk_raster');
+% save(fullfile('signs','sign_lfp_tf.mat'),'sign_lfp_tf');
+% save(fullfile('signs','label.mat'),'label');
+% save(fullfile('signs','refs.mat'),'refs');
+% cd(filesavepath) 
+% for i = 1:40 
+%     filename = sprintf('my_plot_%d.jpg', i); % 生成不同的文件名 
+%     saveas(i, filename, 'jpg');
+% end 
+% close all;
+
+%% 保存所有图片
+% mkdir(strcat(filepath,xlsx_NAMEFile(1,1:end-5),'-60-80Hz-results'));
+% for i = 1:52
+%         filename = strcat(filepath,xlsx_NAMEFile(1,1:end-5),'-60-80Hz-results','\',sprintf('fig%d.jpg',i)); % 生成不同的文件名
+%         saveas(i, filename, 'jpg');
+%      
+% end
+%% 做单试次图
+% before = 5; %%打标前5s
+% after = 5;   %%打标后5s
+% choose_ch=[1:16];
+% fbandone=[1,12];   %选择分析频带
+% fbandtwo=[13,30];   %选择分析频带
+% fbandthree=[30,45];   %选择分析频带
+% fbandfour=[60,80];   %选择分析频带
+% P_plot_8(choose_ch,sign_raw,sign_lfp_raw,sign_spk_raw,refs,before,after,fs,FS,fbandone,fbandtwo,fbandthree,fbandfour,spkdata,sign_spk_rate);
+
+%% 保存所有图片
+% mkdir(strcat(filepath,xlsx_NAMEFile(1,1:end-5),'-single-trail-ch-results'));
+% for t = 1:size(refs,1)
+%     for i = 1:16
+%         filename = strcat(filepath,xlsx_NAMEFile(1,1:end-5),'-single-trail-ch-results','\',sprintf('fig_trial%d_ch%d.jpg', t,i)); % 生成不同的文件名
+%         saveas(16*(t-1)+i, filename, 'jpg');
+%      end
+% end

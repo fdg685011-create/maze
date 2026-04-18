@@ -1,0 +1,17 @@
+function [ ] = f_PCA_allData(data,fs,window_length,refs)
+%f_PCA_allData 此处显示有关此函数的摘要
+%输入：data：(全时长样本×维度)；fs:采样率；window_length：窗长；refs：打标时刻
+
+
+
+
+
+
+
+
+
+
+
+
+
+end

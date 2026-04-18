@@ -1,0 +1,6 @@
+function [outputArg1,outputArg2] = p_spkrate_single_ch_all_trials(data ...,inputArg2)
+%UNTITLED2 此处显示有关此函数的摘要
+%   此处显示详细说明
+outputArg1 = inputArg1;
+outputArg2 = inputArg2;
+end

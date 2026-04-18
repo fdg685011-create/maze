@@ -1,0 +1,25 @@
+function [sign_lfp_rate] = f_read_lfprate(data,channel,freq,fs,window,step)
+%UNTITLED2 此处显示有关此函数的摘要
+%   此处显示详细说明
+
+
+
+sign_lfp_tf={}
+
+
+for ch = 1:length(channel)
+    disp(channel(ch))
+    data_ch = data(:,ch);
+    [s,f,t] = spectrogram(data_ch,window,window-step,freq(1):freq(2),fs);
+    s=abs(s*2/window*2);
+    data_sz{r+ori*size((refs(refs(:,3)==0,:)),1),ch}=s;
+
+end
+
+
+sign_lfp_rate=f_sl_binsl(sign_lfp_rate,200,1);
+
+
+
+
+end
