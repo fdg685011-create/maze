@@ -1,0 +1,5 @@
+before = 5; %%打标前5s
+after = 5;   %%打标后5s
+choose_ch=15;
+fband=[60,80];   %选择分析频带
+P_plot(choose_ch,sign_raw,sign_lfp_raw,sign_spk_raw,refs,before,after,fs,FS,fband);
